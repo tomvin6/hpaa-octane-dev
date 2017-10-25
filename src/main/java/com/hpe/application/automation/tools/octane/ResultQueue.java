@@ -29,6 +29,8 @@ public interface ResultQueue {
 
     void add(String projectName, int buildNumber);
 
+    void add(String projectName, String type, int buildNumber);
+
     void add(String projectName, int buildNumber, String workspace);
 
     void clear();
@@ -41,8 +43,20 @@ public interface ResultQueue {
         String workspace;
         int failCount;
 
+        public void setType(String type) {
+            this.type = type;
+        }
+
+        String type;
+
+
         public QueueItem(String projectName, int buildNumber) {
             this(projectName, buildNumber, 0);
+        }
+
+        public QueueItem(String projectName, String type, int buildNumber) {
+            this(projectName, buildNumber, 0);
+            this.type = type;
         }
 
         public QueueItem(String projectName, int buildNumber, String workspace) {
@@ -61,6 +75,10 @@ public interface ResultQueue {
             this.buildNumber = buildNumber;
             this.failCount = failCount;
             this.workspace = workspace;
+        }
+
+        public String getType() {
+            return type;
         }
 
         public int incrementFailCount() {

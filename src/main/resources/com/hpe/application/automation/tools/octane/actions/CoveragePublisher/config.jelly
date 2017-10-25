@@ -11,9 +11,14 @@
     When submitted, it will be passed to the corresponding constructor parameter.
   -->
 
-    <f:entry title="Coverage report XMLs" field="coveragePathPattern"
-             description="${%description('http://ant.apache.org/manual/Types/fileset.html')}">
+    <f:entry title="Jacoco coverage report XMLs" field="jacocoPathPattern"
+             description="${%descriptionJacoco('http://ant.apache.org/manual/Types/fileset.html')}">
         <f:textbox />
     </f:entry>
+
+        <f:entry title="Lcov coverage report info files" field="lcovPathPattern"
+                 description="${%descriptionLcov('http://ant.apache.org/manual/Types/fileset.html')}">
+            <f:textbox />
+        </f:entry>
 
 </j:jelly>

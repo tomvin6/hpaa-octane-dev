@@ -33,24 +33,29 @@ import java.nio.file.Files;
  * Helper Service for coverage publisher
  */
 public class CoverageService {
-    public static final String JACOCO_TYPE = "JACOCOXML";
-
-    private static final String JACOCO_DEFAULT_FILE_NAME = "jacoco.xml";
     private static final String COVERAGE_REPORT_FILE_NAME_PREFIX = "coverage_report";
-    public static final String DEFAULT_PATH = "**/target/site/*/" + JACOCO_DEFAULT_FILE_NAME;
+
+    public static class Jacoco {
+        public static final String JACOCO_TYPE = "JACOCOXML";
+        public static final String JACOCO_FILE_EXTENSION = ".xml";
+        public static final String JACOCO_DEFAULT_FILE_NAME = "jacoco" + JACOCO_FILE_EXTENSION;
+        public static final String JACOCO_DEFAULT_PATH = "**/target/site/*/" + JACOCO_DEFAULT_FILE_NAME;
+
+    }
+    public static class Lcov {
+        public static final String LCOV_TYPE = "LCOV";
+        public static final String LCOV_FILE_EXTENSION = ".info";
+        public static final String LCOV_DEFAULT_FILE_NAME = "lcov" + LCOV_FILE_EXTENSION;
+        public static final String LCOV_DEFAULT_PATH = "**/coverage/" + LCOV_DEFAULT_FILE_NAME;
+    }
 
     private static BuildListener listener;
 
-    public static String getCoverageReportFileName(int index) {
-        return COVERAGE_REPORT_FILE_NAME_PREFIX + index + ".xml";
+    public static String getCoverageReportFileName(int index, String fileSuffix) {
+        return COVERAGE_REPORT_FILE_NAME_PREFIX + index + "-" + fileSuffix;
     }
 
     public static String[] getCoverageFiles(final FilePath workspace, String glob) throws IOException, InterruptedException {
-        if (glob == null || glob.isEmpty()) {
-            glob = DEFAULT_PATH;
-            log("Coverage file pattern is empty");
-        }
-
         log(String.format("Looking for files that match the pattern %s in root directory %s", glob, workspace.getName()));
         return workspace.act(new ResultFilesCallable(glob));
     }

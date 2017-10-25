@@ -21,6 +21,9 @@ import hudson.model.Action;
 import hudson.model.BuildListener;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * this action initiate a copy of all coverage reports from workspace to build folder.
@@ -28,11 +31,9 @@ import java.io.File;
  */
 public class CoveragePublisherAction implements Action {
     private final AbstractBuild build;
-    private final String glob;
 
-    public CoveragePublisherAction(AbstractBuild build, String glob, BuildListener listener) {
+    public CoveragePublisherAction(AbstractBuild build, BuildListener listener) {
         this.build = build;
-        this.glob = glob;
         CoverageService.setListener(listener);
     }
 
@@ -40,16 +41,17 @@ public class CoveragePublisherAction implements Action {
      * this method copy all reports from specified path pattern
      * @return true if files have been copied, otherwise return false
      */
-    public boolean copyCoverageReportsToBuildFolder() {
+    public boolean copyCoverageReportsToBuildFolder(String filePattern, String defaultFileName) {
         try {
             CoverageService.log("start copying coverage report to build folder");
-            String[] files = CoverageService.getCoverageFiles(build.getWorkspace(), glob);
-            boolean found = files.length > 0;
+            String[] files = CoverageService.getCoverageFiles(build.getWorkspace(), filePattern);
+            ArrayList<String> filteredFiles = filterFilesByFileExtension(files);
+            boolean found = filteredFiles.size() > 0;
             int index = 0;
 
-            for (String fileName : files) {
+            for (String fileName : filteredFiles) {
                 File resultFile = new File(build.getWorkspace().child(fileName).toURI());
-                File targetReportFile = new File(build.getRootDir(), CoverageService.getCoverageReportFileName(index++));
+                File targetReportFile = new File(build.getRootDir(), CoverageService.getCoverageReportFileName(index++, defaultFileName));
                 CoverageService.copyCoverageFile(resultFile, targetReportFile, build.getWorkspace());
             }
 
@@ -63,6 +65,21 @@ public class CoveragePublisherAction implements Action {
             CoverageService.log("Copying coverage files to build folder failed because of " + e.toString());
             return false;
         }
+    }
+
+    /**
+     * pre validation of coverage files by file extension.
+     * @param files to validate
+     * @return filtered list of files
+     */
+    private ArrayList<String> filterFilesByFileExtension(String[] files) {
+        ArrayList<String> filteredList = new ArrayList<>();
+        for (String fileFullPath : files) {
+            if (fileFullPath.endsWith(CoverageService.Lcov.LCOV_FILE_EXTENSION) || fileFullPath.endsWith(CoverageService.Jacoco.JACOCO_FILE_EXTENSION)) {
+                filteredList.add(fileFullPath);
+            }
+        }
+        return filteredList;
     }
 
     @Override

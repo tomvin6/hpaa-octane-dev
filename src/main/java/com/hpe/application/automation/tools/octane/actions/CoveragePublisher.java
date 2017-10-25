@@ -45,17 +45,18 @@ import java.io.IOException;
  * the build folder for future upload.
  */
 public class CoveragePublisher extends Recorder {
-	private final String coveragePathPattern;
-
+	private final String jacocoPathPattern;
+	private final String lcovPathPattern;
 	/**
 	 * this ctor is being called from configuration page.
-	 * the coveragePathPattern is being injected from the web page text box
-	 * @param coveragePathPattern regular expression path for coverage reports
+	 * the jacocoPathPattern is being injected from the web page text box
+	 * @param jacocoPathPattern regular expression path for coverage reports
 	 */
 	@DataBoundConstructor
-	public CoveragePublisher(String coveragePathPattern) {
+	public CoveragePublisher(String jacocoPathPattern, String lcovPathPattern) {
 		// Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
-		this.coveragePathPattern = coveragePathPattern;
+		this.jacocoPathPattern = jacocoPathPattern == null || jacocoPathPattern.isEmpty() ? CoverageService.Jacoco.JACOCO_DEFAULT_PATH : jacocoPathPattern;
+		this.lcovPathPattern = lcovPathPattern == null || lcovPathPattern.isEmpty() ? CoverageService.Lcov.LCOV_DEFAULT_PATH : lcovPathPattern;
 	}
 
 	/**
@@ -67,19 +68,24 @@ public class CoveragePublisher extends Recorder {
 	 */
 	@Override
 	public boolean perform(AbstractBuild build, Launcher launcher, BuildListener listener) {
+		boolean copyReportsToBuildFolderStatus = false;
 		ExtensionList<CoverageReportsDispatcher> extensionList = Jenkins.getInstance().getExtensionList(CoverageReportsDispatcher.class);
 		if (extensionList == null || extensionList.size() == 0) {
 			return false;
 		}
 		// copy coverage reports
-		CoveragePublisherAction action = new CoveragePublisherAction(build, coveragePathPattern, listener);
+		CoveragePublisherAction action = new CoveragePublisherAction(build, listener);
 		build.addAction(action);
-		if (!action.copyCoverageReportsToBuildFolder()) {
-			return false;
+		if (action.copyCoverageReportsToBuildFolder(jacocoPathPattern, CoverageService.Jacoco.JACOCO_DEFAULT_FILE_NAME)) {
+			extensionList.get(0).enqueueTask(build.getProject().getFullName(), build.getNumber(), CoverageService.Jacoco.JACOCO_TYPE);
+			copyReportsToBuildFolderStatus = true;
+		}
+		if (action.copyCoverageReportsToBuildFolder(lcovPathPattern, CoverageService.Lcov.LCOV_DEFAULT_FILE_NAME)) {
+			extensionList.get(0).enqueueTask(build.getProject().getFullName(), build.getNumber(), CoverageService.Lcov.LCOV_TYPE);
+			copyReportsToBuildFolderStatus |= true;
 		}
 		// add upload task to queue
-		extensionList.get(0).enqueueTask(build.getProject().getFullName(), build.getNumber());
-		return true;
+		return copyReportsToBuildFolderStatus;
 	}
 
 	/**
@@ -124,9 +130,17 @@ public class CoveragePublisher extends Recorder {
 			return "HPE ALM Octane code coverage publisher";
 		}
 
-		public FormValidation doCheckCoveragePathPattern(@AncestorInPath AbstractProject project, @QueryParameter String value) throws IOException, ServletException {
+		public FormValidation doCheckJacocoPathPattern(@AncestorInPath AbstractProject project, @QueryParameter String value) throws IOException, ServletException {
 			if (value == null || value.isEmpty()) {
-				return FormValidation.warning(Messages.CoverageResultsActionEmptyConfigurationWarning(), CoverageService.DEFAULT_PATH);
+				return FormValidation.warning(Messages.CoverageResultsActionEmptyConfigurationWarning(), CoverageService.Jacoco.JACOCO_DEFAULT_PATH);
+			} else if (project == null) {
+				return FormValidation.ok();
+			}
+			return FilePath.validateFileMask(project.getSomeWorkspace(), value);
+		}
+		public FormValidation doCheckLcovPathPattern(@AncestorInPath AbstractProject project, @QueryParameter String value) throws IOException, ServletException {
+			if (value == null || value.isEmpty()) {
+				return FormValidation.warning(Messages.CoverageResultsActionEmptyConfigurationWarning(), CoverageService.Lcov.LCOV_DEFAULT_PATH);
 			} else if (project == null) {
 				return FormValidation.ok();
 			}

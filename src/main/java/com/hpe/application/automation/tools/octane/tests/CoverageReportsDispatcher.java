@@ -106,17 +106,14 @@ public class CoverageReportsDispatcher extends AbstractSafeLoggingAsyncPeriodWor
 				continue;
 			}
 
-			try {
-				transferCoverageReports(build, mqmRestClient, item, CoverageService.JACOCO_TYPE);
-			} catch (Exception e) {
-				logger.error("fatally failed to send coverage reports for build " + item.getProjectName() + " #" + item.getBuildNumber() + ", will not retry this one", e);
-			}
+			transferCoverageReports(build, mqmRestClient, item, CoverageService.Jacoco.JACOCO_DEFAULT_FILE_NAME);
+			transferCoverageReports(build, mqmRestClient, item, CoverageService.Lcov.LCOV_DEFAULT_FILE_NAME);
 		}
 	}
 
-	private void transferCoverageReports(Run build, MqmRestClient mqmRestClient, ResultQueue.QueueItem item, String coverageReportType) {
+	private void transferCoverageReports(Run build, MqmRestClient mqmRestClient, ResultQueue.QueueItem item, String coverageReportFileSuffix) {
 		long index = 0;
-		File coverageFile = getCoverageFile(build, index);
+		File coverageFile = getCoverageFile(build, index, coverageReportFileSuffix);
 		try {
 			// iterate all coverage reports in build folder
 			while (coverageFile.exists()) {
@@ -126,38 +123,37 @@ public class CoverageReportsDispatcher extends AbstractSafeLoggingAsyncPeriodWor
 						BuildHandlerUtils.getJobCiId(build),
 						String.valueOf(build.getNumber()),
 						new FileInputStream(coverageFile),
-						coverageFile.length(), coverageReportType);
+						coverageFile.length(), item.getType());
 				if (status) {
 					logger.info("Successfully sent coverage report " + coverageFile.getName());
 					reportsQueue.remove();
 				} else {
 					logger.error("failed to send coverage report " + coverageFile.getName());
-					reAttemptTask(item.getProjectName(), item.getBuildNumber());
+					reAttemptTask(item.getProjectName(), item.getBuildNumber(), item.getType());
 				}
-
 				// get next file
 				index++;
-				coverageFile = getCoverageFile(build, index);
+				coverageFile = getCoverageFile(build, index, item.getType());
 			}
 		} catch (RequestErrorException ree) {
-			logger.error("failed to send coverage reports for build " + item.getProjectName() + " #" + item.getBuildNumber() + " to workspace " + item.getWorkspace(), ree);
-			reAttemptTask(item.getProjectName(), item.getBuildNumber());
+			logger.error("failed to send coverage reports (of type " + item.getType() + ") for build " + item.getProjectName() + " #" + item.getBuildNumber() + " to workspace " + item.getWorkspace(), ree);
+			reAttemptTask(item.getProjectName(), item.getBuildNumber(), item.getType());
 		} catch (Exception e) {
-			logger.error("fatally failed to send coverage reports for build " + item.getProjectName() + " #" + item.getBuildNumber() + " to workspace " + item.getWorkspace() + ", will not retry this one", e);
+			logger.error("fatally failed to send coverage reports (of type " + item.getType() + ") for build " + item.getProjectName() + " #" + item.getBuildNumber() + " to workspace " + item.getWorkspace() + ", will not retry this one", e);
 			retryModel.success();
 			reportsQueue.remove();
 		}
 	}
 
-	private File getCoverageFile(Run build, long index) {
-		String coverageReportFilePath = build.getRootDir() + File.separator + CoverageService.getCoverageReportFileName((int) index);
+	private File getCoverageFile(Run build, long index, String coverageReportFileSuffix) {
+		String coverageReportFilePath = build.getRootDir() + File.separator + CoverageService.getCoverageReportFileName((int) index, coverageReportFileSuffix);
 		return new File(coverageReportFilePath);
 	}
 
-	private void reAttemptTask(String projectName, int buildNumber) {
+	private void reAttemptTask(String projectName, int buildNumber, String itemReportType) {
 		if (!reportsQueue.failed()) { // add task to queue and return true if max attempts not reached, else return false
 			logger.warn("maximum number of attempts reached (" + MAX_RETRIES + "), " +
-					"operation will not be re-attempted for build "+ projectName + " #" + buildNumber);
+					"operation will not be re-attempted for build "+ projectName + " #" + buildNumber + " of type " + itemReportType);
 			retryModel.success();
 		} else {
 			logger.info("There are pending logs, but we are in quiet period");
@@ -196,8 +192,8 @@ public class CoverageReportsDispatcher extends AbstractSafeLoggingAsyncPeriodWor
 		return TimeUnit2.SECONDS.toMillis(10);
 	}
 
-	public void enqueueTask(String projectName, int buildNumber) {
-		reportsQueue.add(projectName, buildNumber);
+	public void enqueueTask(String projectName, int buildNumber, String fileType) {
+		reportsQueue.add(projectName, fileType, buildNumber);
 	}
 
 	@Inject
