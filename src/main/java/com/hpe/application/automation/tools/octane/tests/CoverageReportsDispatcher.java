@@ -105,9 +105,11 @@ public class CoverageReportsDispatcher extends AbstractSafeLoggingAsyncPeriodWor
 				reportsQueue.remove();
 				continue;
 			}
-
-			transferCoverageReports(build, mqmRestClient, item, CoverageService.Jacoco.JACOCO_DEFAULT_FILE_NAME);
-			transferCoverageReports(build, mqmRestClient, item, CoverageService.Lcov.LCOV_DEFAULT_FILE_NAME);
+			if (item.getType().equals(CoverageService.Jacoco.JACOCO_TYPE)) {
+				transferCoverageReports(build, mqmRestClient, item, CoverageService.Jacoco.JACOCO_DEFAULT_FILE_NAME);
+			} else if (item.getType().equals(CoverageService.Lcov.LCOV_TYPE)) {
+				transferCoverageReports(build, mqmRestClient, item, CoverageService.Lcov.LCOV_DEFAULT_FILE_NAME);
+			}
 		}
 	}
 
@@ -126,15 +128,16 @@ public class CoverageReportsDispatcher extends AbstractSafeLoggingAsyncPeriodWor
 						coverageFile.length(), item.getType());
 				if (status) {
 					logger.info("Successfully sent coverage report " + coverageFile.getName());
-					reportsQueue.remove();
 				} else {
 					logger.error("failed to send coverage report " + coverageFile.getName());
 					reAttemptTask(item.getProjectName(), item.getBuildNumber(), item.getType());
+					return;
 				}
 				// get next file
 				index++;
-				coverageFile = getCoverageFile(build, index, item.getType());
+				coverageFile = getCoverageFile(build, index, coverageReportFileSuffix);
 			}
+			reportsQueue.remove();
 		} catch (RequestErrorException ree) {
 			logger.error("failed to send coverage reports (of type " + item.getType() + ") for build " + item.getProjectName() + " #" + item.getBuildNumber() + " to workspace " + item.getWorkspace(), ree);
 			reAttemptTask(item.getProjectName(), item.getBuildNumber(), item.getType());
