@@ -58,6 +58,13 @@ public class CoveragePublisher extends Recorder {
 		this.jacocoPathPattern = jacocoPathPattern == null || jacocoPathPattern.isEmpty() ? CoverageService.Jacoco.JACOCO_DEFAULT_PATH : jacocoPathPattern;
 		this.lcovPathPattern = lcovPathPattern == null || lcovPathPattern.isEmpty() ? CoverageService.Lcov.LCOV_DEFAULT_PATH : lcovPathPattern;
 	}
+	public String getJacocoPathPattern() {
+		return jacocoPathPattern;
+	}
+
+	public String getLcovPathPattern() {
+		return lcovPathPattern;
+	}
 
 	/**
 	 * this is where we build the project. this method is being called when we run the build
