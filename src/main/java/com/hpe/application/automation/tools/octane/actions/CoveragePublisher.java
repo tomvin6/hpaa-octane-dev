@@ -58,10 +58,19 @@ public class CoveragePublisher extends Recorder {
 		this.jacocoPathPattern = jacocoPathPattern == null || jacocoPathPattern.isEmpty() ? CoverageService.Jacoco.JACOCO_DEFAULT_PATH : jacocoPathPattern;
 		this.lcovPathPattern = lcovPathPattern == null || lcovPathPattern.isEmpty() ? CoverageService.Lcov.LCOV_DEFAULT_PATH : lcovPathPattern;
 	}
+
+	/**
+	 * this method used for serialization & deserialization of path
+	 * @return jacoco path
+	 */
 	public String getJacocoPathPattern() {
 		return jacocoPathPattern;
 	}
 
+	/**
+	 * this method used for serialization & deserialization of path
+	 * @return lcov path
+	 */
 	public String getLcovPathPattern() {
 		return lcovPathPattern;
 	}
