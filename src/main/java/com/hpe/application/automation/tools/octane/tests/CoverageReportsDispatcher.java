@@ -127,9 +127,9 @@ public class CoverageReportsDispatcher extends AbstractSafeLoggingAsyncPeriodWor
 						new FileInputStream(coverageFile),
 						coverageFile.length(), item.getType());
 				if (status) {
-					logger.info("Successfully sent coverage report " + coverageFile.getName());
+					logger.info("Successfully sent coverage report " + coverageFile.getName() + " for job " + item.getProjectName() + " with build #" + item.getBuildNumber());
 				} else {
-					logger.error("failed to send coverage report " + coverageFile.getName());
+					logger.error("failed to send coverage report " + coverageFile.getName() + " for job " + item.getProjectName() + " with build #" + item.getBuildNumber());
 					reAttemptTask(item.getProjectName(), item.getBuildNumber(), item.getType());
 					return;
 				}
@@ -139,10 +139,10 @@ public class CoverageReportsDispatcher extends AbstractSafeLoggingAsyncPeriodWor
 			}
 			reportsQueue.remove();
 		} catch (RequestErrorException ree) {
-			logger.error("failed to send coverage reports (of type " + item.getType() + ") for build " + item.getProjectName() + " #" + item.getBuildNumber() + " to workspace " + item.getWorkspace(), ree);
+			logger.error("failed to send coverage reports (of type " + item.getType() + ") for job " + item.getProjectName() + " #" + item.getBuildNumber(), ree);
 			reAttemptTask(item.getProjectName(), item.getBuildNumber(), item.getType());
 		} catch (Exception e) {
-			logger.error("fatally failed to send coverage reports (of type " + item.getType() + ") for build " + item.getProjectName() + " #" + item.getBuildNumber() + " to workspace " + item.getWorkspace() + ", will not retry this one", e);
+			logger.error("fatally failed to send coverage reports (of type " + item.getType() + ") for build " + item.getProjectName() + " #" + item.getBuildNumber() + ", will not retry this one", e);
 			retryModel.success();
 			reportsQueue.remove();
 		}

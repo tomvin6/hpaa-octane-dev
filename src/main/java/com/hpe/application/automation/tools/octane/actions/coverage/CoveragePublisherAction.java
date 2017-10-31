@@ -41,7 +41,7 @@ public class CoveragePublisherAction implements Action {
      */
     public boolean copyCoverageReportsToBuildFolder(String filePattern, String defaultFileName) {
         try {
-            CoverageService.log("start copying coverage report to build folder");
+            CoverageService.log("start copying coverage report to build folder, using file patten of " + filePattern);
             String[] files = CoverageService.getCoverageFiles(build.getWorkspace(), filePattern);
             ArrayList<String> filteredFiles = filterFilesByFileExtension(files);
             boolean found = filteredFiles.size() > 0;
