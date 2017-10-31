@@ -17,7 +17,6 @@
 package com.hpe.application.automation.tools.octane.executor;
 
 import com.hpe.application.automation.tools.octane.AbstractResultQueueImpl;
-import com.hpe.application.automation.tools.octane.ResultQueue;
 import jenkins.model.Jenkins;
 
 import java.io.File;

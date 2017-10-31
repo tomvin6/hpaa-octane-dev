@@ -37,17 +37,16 @@ public interface ResultQueue {
 
     class QueueItem implements Serializable {
         private static final long serialVersionUID = 1;
-
+        private String type;
         String projectName;
         int buildNumber;
         String workspace;
         int failCount;
 
+
         public void setType(String type) {
             this.type = type;
         }
-
-        String type;
 
 
         public QueueItem(String projectName, int buildNumber) {

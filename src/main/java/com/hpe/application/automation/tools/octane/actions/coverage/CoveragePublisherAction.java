@@ -22,8 +22,6 @@ import hudson.model.BuildListener;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * this action initiate a copy of all coverage reports from workspace to build folder.

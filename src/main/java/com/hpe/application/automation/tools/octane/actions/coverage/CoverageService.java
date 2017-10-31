@@ -34,6 +34,7 @@ import java.nio.file.Files;
  */
 public class CoverageService {
     private static final String COVERAGE_REPORT_FILE_NAME_PREFIX = "coverage_report";
+    private static BuildListener listener;
 
     public static class Jacoco {
         public static final String JACOCO_TYPE = "JACOCOXML";
@@ -47,9 +48,8 @@ public class CoverageService {
         public static final String LCOV_FILE_EXTENSION = ".info";
         public static final String LCOV_DEFAULT_FILE_NAME = "lcov" + LCOV_FILE_EXTENSION;
         public static final String LCOV_DEFAULT_PATH = "**/coverage/" + LCOV_DEFAULT_FILE_NAME;
-    }
 
-    private static BuildListener listener;
+    }
 
     public static String getCoverageReportFileName(int index, String fileSuffix) {
         return COVERAGE_REPORT_FILE_NAME_PREFIX + index + "-" + fileSuffix;
