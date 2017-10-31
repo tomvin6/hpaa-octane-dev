@@ -37,7 +37,7 @@ public interface ResultQueue {
 
     class QueueItem implements Serializable {
         private static final long serialVersionUID = 1;
-        private String type;
+        public String type;
         String projectName;
         int buildNumber;
         String workspace;
