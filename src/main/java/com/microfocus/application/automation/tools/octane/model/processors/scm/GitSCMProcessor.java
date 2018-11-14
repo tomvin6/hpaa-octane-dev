@@ -24,6 +24,7 @@ package com.microfocus.application.automation.tools.octane.model.processors.scm;
 
 import com.hp.octane.integrations.dto.DTOFactory;
 import com.hp.octane.integrations.dto.scm.*;
+import com.hp.octane.integrations.dto.scm.impl.LineRange;
 import hudson.FilePath;
 import hudson.model.*;
 import hudson.plugins.git.Branch;
