@@ -44,22 +44,23 @@ import jenkins.MasterToSlaveFileCallable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.diff.*;
 import org.eclipse.jgit.errors.NoMergeBaseException;
 import org.eclipse.jgit.internal.JGitText;
+import org.eclipse.jgit.internal.storage.file.FileRepository;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.revwalk.filter.RevFilter;
+import org.eclipse.jgit.util.io.DisabledOutputStream;
 import org.jenkinsci.plugins.workflow.job.WorkflowRun;
 
 import java.io.File;
 import java.io.IOException;
 import java.text.MessageFormat;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 
 /**
  * Created by gullery on 31/03/2015.
@@ -74,7 +75,107 @@ class GitSCMProcessor implements SCMProcessor {
     public SCMData getSCMData(AbstractBuild build, SCM scm) {
         List<ChangeLogSet<? extends ChangeLogSet.Entry>> changes = new ArrayList<>();
         changes.add(build.getChangeSet());
-        return extractSCMData(build, scm, changes);
+        SCMData scmData = extractSCMData(build, scm, changes);
+        scmData = enrichLinesOnSCMData(scmData, build);
+        return scmData;
+    }
+
+    /**
+     * this method go over each of the changed files and enrich line changes
+     * into existing scm events, so that the new enriched events will have line ranges.
+     * in addition, for each renamed file, we enrich inside delete event the 'renamed to' file
+     * @param scmData
+     * @param build
+     */
+    private SCMData enrichLinesOnSCMData(SCMData scmData, AbstractBuild build) {
+        long startTime = System.currentTimeMillis();
+        try {
+            FileRepository repo = new FileRepository(new File(getRemoteString(build) + File.separator + ".git"));
+            RevWalk rw = new RevWalk(repo);
+            DiffFormatter df = new DiffFormatter(DisabledOutputStream.INSTANCE);
+            df.setDiffComparator(RawTextComparator.DEFAULT);
+            df.setRepository(repo);
+            df.setDetectRenames(true);
+            for (SCMCommit curCommit : scmData.getCommits()) {
+                Map<String, SCMChange> fileChanges = new HashMap<>();
+                curCommit.getChanges().forEach(change -> fileChanges.put(change.getFile(), change));
+                RevCommit commit = rw.parseCommit(repo.resolve(curCommit.getRevId())); // Any ref will work here (HEAD, a sha1, tag, branch)
+                RevCommit parent = rw.parseCommit(commit.getParent(0).getId());
+
+                List<DiffEntry>  diffs = df.scan(parent.getTree(), commit.getTree());
+                // FOR EACH FILE
+                for (DiffEntry diff : diffs) { // each file change will be in seperate diff
+                    EditList fileEdits = df.toFileHeader(diff).toEditList();
+                    switch (diff.getChangeType()) {
+                        case ADD:
+                            // old path == null, need to use new path
+                            handleAddLinesDiff(fileEdits, fileChanges.get(diff.getNewPath()));
+                            break;
+                        case COPY:
+                            // need to validate this type
+                            handleModifyDiff(fileEdits, fileChanges.get(diff.getNewPath()));
+                            break;
+                        case DELETE:
+                            // new path == null, need to use old path
+                            handleDeleteLinesDiff(fileEdits, fileChanges.get(diff.getOldPath()));
+                            break;
+                        case MODIFY:
+                            handleModifyDiff(fileEdits, fileChanges.get(diff.getNewPath()));
+                            break;
+                        case RENAME:
+                            // enrich delete event with 'rename to' data
+                            SCMChange deletedChange = fileChanges.get(diff.getOldPath());
+                            SCMChange newRenamedFile = fileChanges.get(diff.getNewPath());
+                            deletedChange.setRenamedToFile(newRenamedFile.getFile());
+                            // handle changes
+                            handleModifyDiff(fileEdits, fileChanges.get(diff.getNewPath()));
+                            break;
+                    }
+                }
+            }
+        } catch (IOException e1) {
+            logger.error("Line enricher: FAILED. could not enrich lines on SCM Data " + e1);
+        }
+        logger.info("Line enricher: process took: " + ((System.currentTimeMillis() - startTime) / 1000) + " seconds");
+        return scmData;
+    }
+
+    private void handleModifyDiff(EditList fileEdits, SCMChange scmChange) {
+        if (scmChange != null) {
+            for (Edit edit : fileEdits) {
+                switch (edit.getType()) {
+                    case INSERT:
+                        scmChange.insertAddedLines(new LineRange(edit.getBeginB() + 1, edit.getEndB()));
+                        break;
+                    case DELETE:
+                        scmChange.insertDeletedLines(new LineRange(edit.getBeginA() + 1, edit.getEndA()));
+                        break;
+                    case REPLACE:
+                        scmChange.insertDeletedLines(new LineRange(edit.getBeginA() + 1, edit.getEndA()));
+                        scmChange.insertAddedLines(new LineRange(edit.getBeginB() + 1, edit.getEndB()));
+                        break;
+                    case EMPTY:
+                        break;
+                }
+            }
+        }
+    }
+
+    // probably it's useless to track deleted lines (inside scm change), consider removing it later.
+    private void handleDeleteLinesDiff(EditList fileEdits, SCMChange scmChange) {
+        if (scmChange != null) {
+            for (Edit edit : fileEdits) {
+                scmChange.insertDeletedLines(new LineRange(edit.getBeginA() + 1, edit.getEndA()));
+            }
+        }
+    }
+
+    private void handleAddLinesDiff(EditList fileEdits, SCMChange scmChange) {
+        if (scmChange != null) {
+            for (Edit edit : fileEdits) {
+                scmChange.insertAddedLines(new LineRange(edit.getBeginB() + 1, edit.getEndB()));
+            }
+        }
     }
 
     @Override
