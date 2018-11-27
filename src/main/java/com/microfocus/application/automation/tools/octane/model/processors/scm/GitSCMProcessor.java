@@ -25,6 +25,8 @@ package com.microfocus.application.automation.tools.octane.model.processors.scm;
 import com.hp.octane.integrations.dto.DTOFactory;
 import com.hp.octane.integrations.dto.scm.*;
 import com.hp.octane.integrations.dto.scm.impl.LineRange;
+import com.hp.octane.integrations.dto.scm.impl.RevisionsMap;
+import com.hp.octane.integrations.dto.scm.impl.SCMFileBlameImpl;
 import hudson.FilePath;
 import hudson.model.*;
 import hudson.plugins.git.Branch;
@@ -43,7 +45,10 @@ import hudson.util.DescribableList;
 import jenkins.MasterToSlaveFileCallable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.eclipse.jgit.api.BlameCommand;
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.blame.BlameResult;
 import org.eclipse.jgit.diff.*;
 import org.eclipse.jgit.errors.NoMergeBaseException;
 import org.eclipse.jgit.internal.JGitText;
@@ -84,6 +89,7 @@ class GitSCMProcessor implements SCMProcessor {
      * this method go over each of the changed files and enrich line changes
      * into existing scm events, so that the new enriched events will have line ranges.
      * in addition, for each renamed file, we enrich inside delete event the 'renamed to' file
+     *
      * @param scmData
      * @param build
      */
@@ -96,13 +102,19 @@ class GitSCMProcessor implements SCMProcessor {
             df.setDiffComparator(RawTextComparator.DEFAULT);
             df.setRepository(repo);
             df.setDetectRenames(true);
+
+            //add blame data to scm data
+            Set<String> committedFiles = getCommittedFiles(scmData);
+            List<SCMFileBlame> fileBlameList = getBlameData(repo, committedFiles);
+            scmData.setFileBlameList(fileBlameList);
+
             for (SCMCommit curCommit : scmData.getCommits()) {
                 Map<String, SCMChange> fileChanges = new HashMap<>();
                 curCommit.getChanges().forEach(change -> fileChanges.put(change.getFile(), change));
                 RevCommit commit = rw.parseCommit(repo.resolve(curCommit.getRevId())); // Any ref will work here (HEAD, a sha1, tag, branch)
                 RevCommit parent = rw.parseCommit(commit.getParent(0).getId());
 
-                List<DiffEntry>  diffs = df.scan(parent.getTree(), commit.getTree());
+                List<DiffEntry> diffs = df.scan(parent.getTree(), commit.getTree());
                 // FOR EACH FILE
                 for (DiffEntry diff : diffs) { // each file change will be in seperate diff
                     EditList fileEdits = df.toFileHeader(diff).toEditList();
@@ -131,14 +143,65 @@ class GitSCMProcessor implements SCMProcessor {
                             handleModifyDiff(fileEdits, fileChanges.get(diff.getNewPath()));
                             break;
                     }
+
                 }
             }
-        } catch (IOException e1) {
+        } catch (
+                IOException e1) {
             logger.error("Line enricher: FAILED. could not enrich lines on SCM Data " + e1);
         }
         logger.info("Line enricher: process took: " + ((System.currentTimeMillis() - startTime) / 1000) + " seconds");
         return scmData;
     }
+
+    private  Set<String>  getCommittedFiles(SCMData scmData ){
+        Set<String> filesCommittedInPPR = new HashSet<>();
+        for (SCMCommit curCommit : scmData.getCommits()) {
+            curCommit.getChanges().forEach(change -> filesCommittedInPPR.add(change.getFile()));
+        }
+        return filesCommittedInPPR;
+    }
+
+
+    private List<SCMFileBlame> getBlameData(Repository repo, Set<String> files) {
+        BlameCommand blamer = new BlameCommand(repo);
+        List<SCMFileBlame> fileBlameList = new ArrayList<>();
+        ObjectId commitID = null;
+        try {
+            for (String filePath:files){
+                commitID = repo.resolve(Constants.HEAD);
+                blamer.setStartCommit(commitID);
+                blamer.setFilePath(filePath);
+                BlameResult blameResult = blamer.call();
+                RawText rawText = blameResult.getResultContents();
+                Integer fileSize = rawText.size();
+
+                RevisionsMap revisionsMap = new RevisionsMap();
+
+                if (fileSize > 0) {
+                    String startRangeRevision = blameResult.getSourceCommit(0).getName();
+                    Integer startRange = 0;
+                    for (int i = 1; i < fileSize; i++) {
+                        String currentRevision = blameResult.getSourceCommit(i).getName();
+                        if (!currentRevision.equals(startRangeRevision)) {
+                            LineRange range = new LineRange(startRange, i - 1);
+                            revisionsMap.addRangeToRevision(startRangeRevision, range);
+                            startRange = i;
+                            startRangeRevision = currentRevision;
+                        }
+                    }
+                }
+                fileBlameList.add(new SCMFileBlameImpl(filePath, revisionsMap));
+
+            }
+
+            return fileBlameList;
+
+        } catch (IOException | GitAPIException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 
     private void handleModifyDiff(EditList fileEdits, SCMChange scmChange) {
         if (scmChange != null) {
@@ -218,23 +281,23 @@ class GitSCMProcessor implements SCMProcessor {
 
             Git git = Git.open(repoDir);
             Repository repo = git.getRepository();
-            if(repo==null){
+            if (repo == null) {
                 return "";
             }
             final RevWalk walk = new RevWalk(repo);
-            if(walk==null){
+            if (walk == null) {
                 return "";
             }
             ObjectId resolveForCurrentBranch = repo.resolve(Constants.HEAD);
-            if(resolveForCurrentBranch==null){
+            if (resolveForCurrentBranch == null) {
                 return "";
             }
             RevCommit currentBranchCommit = walk.parseCommit(resolveForCurrentBranch);
-            if(currentBranchCommit==null){
+            if (currentBranchCommit == null) {
                 return "";
             }
             ObjectId resolveForMaster = repo.resolve(MASTER);
-            if(resolveForMaster==null){
+            if (resolveForMaster == null) {
                 return "";
             }
             RevCommit masterCommit = walk.parseCommit(resolveForMaster);
@@ -252,17 +315,18 @@ class GitSCMProcessor implements SCMProcessor {
                         MessageFormat.format(JGitText.get().multipleMergeBasesFor, currentBranchCommit.name(), masterCommit.name(), base.name(), base2.name()));
             }
             //in order to return actual revision and not merge commit
-            while (base.getParents().length>1){
+            while (base.getParents().length > 1) {
                 RevCommit base_1 = base.getParent(0);
                 RevCommit base_2 = base.getParent(1);
-                if(base_1.getParents().length==1){
+                if (base_1.getParents().length == 1) {
                     base = base_1;
-                }else{
+                } else {
                     base = base_2;
                 }
             }
             return base.getId().getName();
         }
+
     }
 
     private SCMData extractSCMData(Run run, SCM scm, List<ChangeLogSet<? extends ChangeLogSet.Entry>> changes) {
