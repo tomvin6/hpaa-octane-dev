@@ -21,14 +21,15 @@
 package com.microfocus.application.automation.tools.octane.events;
 
 import com.google.inject.Inject;
-import com.hp.octane.integrations.OctaneSDK;
 import com.hp.octane.integrations.dto.DTOFactory;
 import com.hp.octane.integrations.dto.events.CIEvent;
 import com.hp.octane.integrations.dto.events.CIEventType;
 import com.hp.octane.integrations.dto.events.MultiBranchType;
 import com.hp.octane.integrations.dto.events.PhaseType;
 import com.hp.octane.integrations.dto.snapshots.CIBuildResult;
+import com.microfocus.application.automation.tools.octane.CIJenkinsServicesImpl;
 import com.microfocus.application.automation.tools.octane.model.CIEventCausesFactory;
+import com.microfocus.application.automation.tools.octane.model.CIEventFactory;
 import com.microfocus.application.automation.tools.octane.model.processors.parameters.ParameterProcessors;
 import com.microfocus.application.automation.tools.octane.model.processors.projects.JobProcessorFactory;
 import com.microfocus.application.automation.tools.octane.tests.TestListener;
@@ -99,7 +100,7 @@ public class WorkflowListenerOctaneImpl implements GraphListener {
 					.setProjectDisplayName(parentRun.getParent().getFullName());
 		}
 
-		OctaneSDK.getClients().forEach(octaneClient -> octaneClient.getEventsService().publishEvent(event));
+		CIJenkinsServicesImpl.publishEventToRelevantClients(event);
 	}
 
 	private void sendPipelineFinishedEvent(FlowEndNode flowEndNode) {
@@ -118,7 +119,7 @@ public class WorkflowListenerOctaneImpl implements GraphListener {
 				.setResult(BuildHandlerUtils.translateRunResult(parentRun))
 				.setCauses(CIEventCausesFactory.processCauses(parentRun))
 				.setTestResultExpected(hasTests);
-		OctaneSDK.getClients().forEach(octaneClient -> octaneClient.getEventsService().publishEvent(event));
+		CIJenkinsServicesImpl.publishEventToRelevantClients(event);
 	}
 
 	private void sendStageStartedEvent(StepStartNode stepStartNode) {
@@ -133,7 +134,7 @@ public class WorkflowListenerOctaneImpl implements GraphListener {
 				.setNumber(String.valueOf(parentRun.getNumber()))
 				.setStartTime(TimingAction.getStartTime(stepStartNode))
 				.setCauses(CIEventCausesFactory.processCauses(stepStartNode));
-		OctaneSDK.getClients().forEach(octaneClient -> octaneClient.getEventsService().publishEvent(event));
+		CIJenkinsServicesImpl.publishEventToRelevantClients(event);
 	}
 
 	private void sendStageFinishedEvent(StepEndNode stepEndNode) {
@@ -150,7 +151,7 @@ public class WorkflowListenerOctaneImpl implements GraphListener {
 				.setDuration(TimingAction.getStartTime(stepEndNode) - TimingAction.getStartTime(stepStartNode))
 				.setResult(extractFlowNodeResult(stepEndNode))
 				.setCauses(CIEventCausesFactory.processCauses(stepEndNode));
-		OctaneSDK.getClients().forEach(octaneClient -> octaneClient.getEventsService().publishEvent(event));
+		CIJenkinsServicesImpl.publishEventToRelevantClients(event);
 	}
 
 	private CIBuildResult extractFlowNodeResult(FlowNode node) {
