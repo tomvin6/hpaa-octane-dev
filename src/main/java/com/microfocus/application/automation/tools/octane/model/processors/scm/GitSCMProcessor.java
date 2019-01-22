@@ -180,13 +180,13 @@ class GitSCMProcessor implements SCMProcessor {
 
                 if (fileSize > 0) {
                     String startRangeRevision = blameResult.getSourceCommit(0).getName();
-                    Integer startRange = 0;
+                    Integer startRange = 1;
                     for (int i = 1; i < fileSize; i++) {
                         String currentRevision = blameResult.getSourceCommit(i).getName();
                         if (!currentRevision.equals(startRangeRevision)) {
-                            LineRange range = new LineRange(startRange, i - 1);
+                            LineRange range = new LineRange(startRange, i);//line numbers starting from 1 not from 0.
                             revisionsMap.addRangeToRevision(startRangeRevision, range);
-                            startRange = i;
+                            startRange = i + 1;
                             startRangeRevision = currentRevision;
                         }
                     }
