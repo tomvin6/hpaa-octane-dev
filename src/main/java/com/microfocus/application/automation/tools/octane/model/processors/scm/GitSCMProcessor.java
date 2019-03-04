@@ -140,8 +140,9 @@ class GitSCMProcessor implements SCMProcessor {
                             // handle changes
                             handleModifyDiff(fileEdits, fileChanges.get(diff.getNewPath()));
                             break;
+                        default:
+                            break;
                     }
-
                 }
             }
         } catch (
@@ -152,7 +153,7 @@ class GitSCMProcessor implements SCMProcessor {
         return scmData;
     }
 
-    private  Set<String>  getCommittedFiles(SCMData scmData ){
+    private Set<String> getCommittedFiles(SCMData scmData) {
         Set<String> filesCommittedInPPR = new HashSet<>();
         for (SCMCommit curCommit : scmData.getCommits()) {
             curCommit.getChanges().forEach(change -> filesCommittedInPPR.add(change.getFile()));
@@ -166,7 +167,7 @@ class GitSCMProcessor implements SCMProcessor {
         List<SCMFileBlame> fileBlameList = new ArrayList<>();
         ObjectId commitID = null;
         try {
-            for (String filePath:files){
+            for (String filePath : files) {
                 commitID = repo.resolve(Constants.HEAD);
                 blamer.setStartCommit(commitID);
                 blamer.setFilePath(filePath);
@@ -215,7 +216,7 @@ class GitSCMProcessor implements SCMProcessor {
                         scmChange.insertDeletedLines(new LineRange(edit.getBeginA() + 1, edit.getEndA()));
                         scmChange.insertAddedLines(new LineRange(edit.getBeginB() + 1, edit.getEndB()));
                         break;
-                    case EMPTY:
+                    default:
                         break;
                 }
             }
